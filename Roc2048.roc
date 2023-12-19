@@ -1,5 +1,5 @@
 interface Roc2048
-    exposes [Board, drawBoard, checkBoard, setValue, update, getDirection, emptyCells, emptyBoard]
+    exposes [Board, drawBoard, checkBoard, setValue, move, getDirection, emptyCells, emptyBoard]
     imports []
 
 Cell : I32
@@ -45,7 +45,7 @@ checkBoard : Board -> BoardState
 checkBoard = \board ->
     if board |> List.any (\row -> row |> List.any (\x -> x == goal)) then
         HitGoal
-    else if [L, R, U, D] |> List.any \d -> update board d != board then
+    else if [L, R, U, D] |> List.any \d -> move board d != board then
         HasMove
     else
         GameOver
@@ -72,8 +72,8 @@ transpose = \listOfLists ->
     |> List.walk (List.repeat [] dimension) \state, row ->
         List.map2 state row \col, e -> List.append col e
 
-update : Board, Direction -> Board
-update = \board, d ->
+move : Board, Direction -> Board
+move = \board, d ->
     when d is
         NoOp | Quit -> board
         L ->
@@ -89,9 +89,9 @@ update = \board, d ->
                     _ -> input
             board |> List.map (\row -> row |> List.keepIf (\x -> x != 0) |> mergeLeft |> fillEmpty)
 
-        R -> board |> List.map List.reverse |> update L |> List.map List.reverse
-        U -> board |> transpose |> update L |> transpose
-        D -> board |> transpose |> update R |> transpose
+        R -> board |> List.map List.reverse |> move L |> List.map List.reverse
+        U -> board |> transpose |> move L |> transpose
+        D -> board |> transpose |> move R |> transpose
 
 emptyCells : Board -> List Coordinate
 emptyCells = \board ->

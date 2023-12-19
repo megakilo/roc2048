@@ -3,7 +3,7 @@ app "roc2048"
         pf: "https://github.com/roc-lang/basic-cli/releases/download/0.7.0/bkGby8jb0tmZYsy2hg1E_B2QrCgcSTxdUlHtETwm5m4.tar.br",
         rand: "https://github.com/lukewilliamboswell/roc-random/releases/download/0.1.0/OoD8jmqBLc0gyuaadckDMx1jedEa03EdGSR_V4KhH7g.tar.br",
     }
-    imports [pf.Stdout, pf.Cmd, pf.Utc, pf.Task, pf.Stdin, Roc2048.{ Board, BoardState, drawBoard, update, getDirection, checkBoard, setValue, emptyCells, emptyBoard }, rand.Random.{ Generator, State }]
+    imports [pf.Stdout, pf.Cmd, pf.Utc, pf.Task, pf.Stdin, Roc2048.{ Board, BoardState, drawBoard, move, getDirection, checkBoard, setValue, emptyCells, emptyBoard }, rand.Random.{ Generator, State }]
     provides [main] to pf
 
 GameState : {
@@ -42,8 +42,7 @@ playGame = \{ board, rand } ->
             else if d == Quit then
                 Task.ok (Done {})
             else
-                { board: updatedBoard, rand: nextRand } = addNumber { board: update board d, rand }
-                Task.ok (Step { board: updatedBoard, rand: nextRand })
+                Task.ok (Step ({ board: move board d, rand } |> addNumber))
 
 main =
     _ <- Cmd.new "stty" |> Cmd.args ["-echo", "-icanon"] |> Cmd.status |> Task.attempt

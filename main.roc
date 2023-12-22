@@ -8,29 +8,27 @@ app "roc2048"
 
 GameState : {
     board : Board,
-    rand : {
-        generator : Generator U32 I32,
-        state : State U32,
-    },
+    rndgen : Generator U32 I32,
+    seed : State U32,
 }
 
 addNumber : GameState -> GameState
-addNumber = \{ board, rand } ->
+addNumber = \{ board, rndgen, seed } ->
     locs = emptyCells board
     if List.isEmpty locs then
-        { board, rand }
+        { board, rndgen, seed }
     else
-        rand1 = rand.generator rand.state
+        rand1 = rndgen seed
         num = if rand1.value % 10 < 9 then 2 else 4
-        rand2 = rand.generator rand1.state
+        rand2 = rndgen rand1.state
         idx = (Num.toNat rand2.value) % (List.len locs)
         loc = List.get locs idx |> Result.withDefault (0, 0)
-        { board: setValue board loc num, rand: { rand & state: rand2.state } }
+        { board: setValue board loc num, rndgen, seed: rand2.state }
 
-playGame = \{ board, rand } ->
+playGame = \state ->
     _ <- Cmd.new "clear" |> Cmd.status |> Task.attempt
-    _ <- Stdout.line (drawBoard board) |> Task.await
-    when checkBoard board is
+    _ <- Stdout.line (drawBoard state.board) |> Task.await
+    when checkBoard state.board is
         HitGoal -> Stdout.line "You Win!" |> Task.await \_ -> Task.ok (Done {})
         GameOver -> Stdout.line "Game Over!" |> Task.await \_ -> Task.ok (Done {})
         HasMove ->
@@ -38,18 +36,18 @@ playGame = \{ board, rand } ->
             input = List.first x |> Result.withDefault 0
             d = getDirection input
             if d == NoOp then
-                Task.ok (Step { board, rand })
+                Task.ok (Step state)
             else if d == Quit then
                 Task.ok (Done {})
             else
-                Task.ok (Step ({ board: move board d, rand } |> addNumber))
+                Task.ok (Step ({ state & board: move state.board d } |> addNumber))
 
 main =
     _ <- Cmd.new "stty" |> Cmd.args ["-echo", "-icanon"] |> Cmd.status |> Task.attempt
     ts <- Utc.now |> Task.map Utc.toMillisSinceEpoch |> Task.map Num.toU32 |> Task.await
-    state = Random.seed ts
-    generator = Random.i32 1 Num.maxI32
-    initGame = { board: emptyBoard, rand: { generator, state } } |> addNumber |> addNumber
+    seed = Random.seed ts
+    rndgen = Random.i32 1 Num.maxI32
+    initGame = { board: emptyBoard, rndgen, seed } |> addNumber |> addNumber
     _ <- Task.loop initGame playGame |> Task.await
     _ <- Cmd.new "stty" |> Cmd.args ["echo", "icanon"] |> Cmd.status |> Task.attempt
     Task.ok {}

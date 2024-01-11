@@ -7,14 +7,22 @@ Board : List (List Cell)
 Direction : [NoOp, Quit, L, D, U, R]
 Coordinate : (Nat, Nat)
 BoardState : [HasMove, HitGoal, GameOver]
+LineType : [Top, Middle, Bottom]
 
 # Game Constants
 goal = 2048
 dimension = 4
 cellWidth = 2 + Str.countGraphemes (Num.toStr goal)
 
-divideLine : Str
-divideLine = Str.repeat "-" ((cellWidth + 1) * dimension + 1) |> Str.concat "\n"
+drawLine : LineType -> Str
+drawLine = \lineType ->
+    (leftEnd, connector, rightEnd) =
+        when lineType is
+            Top -> ("┌", "┬", "┐")
+            Middle -> ("├", "┼", "┤")
+            Bottom -> ("└", "┴", "┘")
+    body = Str.repeat "─" cellWidth |> List.repeat dimension |> List.intersperse connector |> Str.joinWith ""
+    "\(leftEnd)\(body)\(rightEnd)\n"
 
 emptyBoard : Board
 emptyBoard = 0 |> List.repeat dimension |> List.repeat dimension
@@ -36,10 +44,10 @@ drawBoard = \board ->
     body =
         board
         |> List.map \row ->
-            row |> List.map drawCell |> List.intersperse "|" |> Str.joinWith ""
-        |> List.intersperse "|\n\(divideLine)|"
+            row |> List.map drawCell |> List.intersperse "│" |> Str.joinWith ""
+        |> List.intersperse "│\n\(drawLine Middle)│"
         |> Str.joinWith ""
-    "\(divideLine)|\(body)|\n\(divideLine)"
+    "\(drawLine Top)│\(body)│\n\(drawLine Bottom)"
 
 checkBoard : Board -> BoardState
 checkBoard = \board ->
@@ -59,11 +67,11 @@ setValue = \board, (x, y), t ->
 getDirection : U8 -> Direction
 getDirection = \x ->
     when x is
-        97 -> L # a in ASCII
-        115 -> D # s
-        119 -> U # w
-        100 -> R # d
-        113 -> Quit # q
+        'a' -> L
+        's' -> D
+        'w' -> U
+        'd' -> R
+        'q' -> Quit
         _ -> NoOp
 
 transpose : Board -> Board

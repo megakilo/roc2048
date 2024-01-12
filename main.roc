@@ -40,7 +40,11 @@ playGame = \state ->
             else if d == Quit then
                 Task.ok (Done {})
             else
-                Task.ok (Step ({ state & board: move state.board d } |> addNumber))
+                newBoard = move state.board d
+                if newBoard == state.board then
+                    Task.ok (Step state)
+                else
+                    Task.ok (Step ({ state & board: newBoard } |> addNumber))
 
 main =
     _ <- Cmd.new "stty" |> Cmd.args ["-echo", "-icanon"] |> Cmd.status |> Task.attempt

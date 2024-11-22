@@ -1,18 +1,16 @@
-interface Roc2048
-    exposes [Board, drawBoard, checkBoard, setValue, move, getDirection, emptyCells, emptyBoard]
-    imports []
+module [Board, drawBoard, checkBoard, setValue, move, getDirection, emptyCells, emptyBoard]
 
 Cell : I32
 Board : List (List Cell)
 Direction : [NoOp, Quit, L, D, U, R]
-Coordinate : (Nat, Nat)
+Coordinate : (U64, U64)
 BoardState : [HasMove, HitGoal, GameOver]
 LineType : [Top, Middle, Bottom]
 
 # Game Constants
 goal = 2048
 dimension = 4
-cellWidth = 2 + Str.countGraphemes (Num.toStr goal)
+cellWidth = 2 + Str.countUtf8Bytes (Num.toStr goal)
 
 drawLine : LineType -> Str
 drawLine = \lineType ->
@@ -22,7 +20,7 @@ drawLine = \lineType ->
             Middle -> ("├", "┼", "┤")
             Bottom -> ("└", "┴", "┘")
     body = Str.repeat "─" cellWidth |> List.repeat dimension |> List.intersperse connector |> Str.joinWith ""
-    "\(leftEnd)\(body)\(rightEnd)\n"
+    "$(leftEnd)$(body)$(rightEnd)\n"
 
 emptyBoard : Board
 emptyBoard = 0 |> List.repeat dimension |> List.repeat dimension
@@ -33,11 +31,11 @@ drawCell = \cell ->
     if cell == 0 then
         Str.repeat " " cellWidth
     else
-        len = Str.countGraphemes (Num.toStr cell)
+        len = Str.countUtf8Bytes (Num.toStr cell)
         pre = (cellWidth + 1 - len) // 2
         post = cellWidth - pre - len
         spaces = \n -> Str.repeat " " n
-        "\(spaces pre)\(Num.toStr cell)\(spaces post)"
+        "$(spaces pre)$(Num.toStr cell)$(spaces post)"
 
 drawBoard : Board -> Str
 drawBoard = \board ->
@@ -45,9 +43,9 @@ drawBoard = \board ->
         board
         |> List.map \row ->
             row |> List.map drawCell |> List.intersperse "│" |> Str.joinWith ""
-        |> List.intersperse "│\n\(drawLine Middle)│"
+        |> List.intersperse "│\n$(drawLine Middle)│"
         |> Str.joinWith ""
-    "\(drawLine Top)│\(body)│\n\(drawLine Bottom)"
+    "$(drawLine Top)│$(body)│\n$(drawLine Bottom)"
 
 checkBoard : Board -> BoardState
 checkBoard = \board ->
@@ -103,12 +101,12 @@ move = \board, d ->
 
 emptyCells : Board -> List Coordinate
 emptyCells = \board ->
-    result, row, i <- board |> List.walkWithIndex []
-    filtered, t, j <- row |> List.walkWithIndex result
-    if t == 0 then
-        List.append filtered (i, j)
-    else
-        filtered
+    List.walkWithIndex board [] \result, row, i ->
+        List.walkWithIndex row result \filtered, t, j ->
+            if t == 0 then
+                List.append filtered (i, j)
+            else
+                filtered
 
 # Tests
 expect

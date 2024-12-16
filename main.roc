@@ -33,8 +33,14 @@ playGame = \state ->
     Cmd.new "clear" |> Cmd.status!
     Stdout.line! (drawBoard state.board)
     when checkBoard state.board is
-        HitGoal -> Stdout.line "You Win!" |> Task.await \_ -> Task.ok (Done {})
-        GameOver -> Stdout.line "Game Over!" |> Task.await \_ -> Task.ok (Done {})
+        HitGoal ->
+            Stdout.line! "You Win!"
+            Task.ok (Done {})
+
+        GameOver ->
+            Stdout.line! "Game Over!"
+            Task.ok (Done {})
+
         HasMove ->
             x = Stdin.bytes! {}
             input = List.first x |> Result.withDefault 0

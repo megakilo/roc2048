@@ -1,13 +1,13 @@
-app [main] {
-    pf: platform "https://github.com/roc-lang/basic-cli/releases/download/0.16.0/O00IPk-Krg_diNS2dVWlI0ZQP794Vctxzv0ha96mK0E.tar.br",
-    rand: "https://github.com/lukewilliamboswell/roc-random/releases/download/0.4.0/Ai2KfHOqOYXZmwdHX3g3ytbOUjTmZQmy0G2R9NuPBP0.tar.br",
+app [main!] {
+    pf: platform "https://github.com/roc-lang/basic-cli/releases/download/0.20.0/X73hGh05nNTkDHU06FHC0YfFaQB1pimX7gncRcao5mU.tar.br",
+    rand: "https://github.com/lukewilliamboswell/roc-random/releases/download/0.5.0/yDUoWipuyNeJ-euaij4w_ozQCWtxCsywj68H0PlJAdE.tar.br",
 }
 
 import pf.Stdout
 import pf.Cmd
 import pf.Utc
 import pf.Stdin
-import Roc2048 exposing [Board, drawBoard, move, getDirection, checkBoard, setValue, emptyCells, emptyBoard]
+import Roc2048 exposing [Board, draw_board, move, get_direction, check_board, set_value, empty_cells, empty_board]
 import rand.Random exposing [Generator, State]
 
 GameState : {
@@ -16,52 +16,52 @@ GameState : {
     seed : State,
 }
 
-addNumber : GameState -> GameState
-addNumber = \{ board, rndgen, seed } ->
-    locs = emptyCells board
-    if List.isEmpty locs then
+add_number : GameState -> GameState
+add_number = |{ board, rndgen, seed }|
+    locs = empty_cells(board)
+    if List.is_empty(locs) then
         { board, rndgen, seed }
     else
-        rand1 = rndgen seed
+        rand1 = rndgen(seed)
         num = if rand1.value % 10 < 9 then 2 else 4
-        rand2 = rndgen rand1.state
-        idx = (Num.toU64 rand2.value) % (List.len locs)
-        loc = List.get locs idx |> Result.withDefault (0, 0)
-        { board: setValue board loc num, rndgen, seed: rand2.state }
+        rand2 = rndgen(rand1.state)
+        idx = Num.to_u64(rand2.value) % List.len(locs)
+        loc = List.get(locs, idx) ?? (0, 0)
+        { board: set_value(board, loc, num), rndgen, seed: rand2.state }
 
-playGame = \state ->
-    Cmd.new "clear" |> Cmd.status!
-    Stdout.line! (drawBoard state.board)
-    when checkBoard state.board is
+game_loop! = |state|
+    Cmd.new("clear") |> Cmd.exec_cmd!()?
+    Stdout.line!(draw_board(state.board))?
+    when check_board(state.board) is
         HitGoal ->
-            Stdout.line! "You Win!"
-            Task.ok (Done {})
+            Stdout.line!("You Win!")?
+            Ok(Done({}))
 
         GameOver ->
-            Stdout.line! "Game Over!"
-            Task.ok (Done {})
+            Stdout.line!("Game Over!")?
+            Ok(Done({}))
 
         HasMove ->
-            x = Stdin.bytes! {}
-            input = List.first x |> Result.withDefault 0
-            d = getDirection input
+            x = Stdin.bytes!({})?
+            input = List.first(x) ?? 0
+            d = get_direction(input)
             if d == NoOp then
-                Task.ok (Step state)
+                game_loop!(state)
             else if d == Quit then
-                Task.ok (Done {})
+                Ok(Done({}))
             else
-                newBoard = move state.board d
-                if newBoard == state.board then
-                    Task.ok (Step state)
+                new_board = move(state.board, d)
+                if new_board == state.board then
+                    game_loop!(state)
                 else
-                    Task.ok (Step ({ state & board: newBoard } |> addNumber))
+                    game_loop!({ state & board: new_board } |> add_number)
 
-main =
-    Cmd.new "stty" |> Cmd.args ["-echo", "-icanon"] |> Cmd.status!
-    ts = Utc.now! {} |> Utc.toMillisSinceEpoch |> Num.toU32
-    seed = Random.seed ts
-    rndgen = Random.boundedI32 1 Num.maxI32
-    initGame = { board: emptyBoard, rndgen, seed } |> addNumber |> addNumber
-    Task.loop! initGame playGame
-    Cmd.new "stty" |> Cmd.args ["echo", "icanon"] |> Cmd.status!
-    Task.ok {}
+main! = |_|
+    Cmd.new("stty") |> Cmd.args(["-echo", "-icanon"]) |> Cmd.exec_cmd!()?
+    ts = Utc.now!({}) |> Utc.to_millis_since_epoch |> Num.to_u32
+    seed = Random.seed(ts)
+    rndgen = Random.bounded_i32(1, Num.max_i32)
+    init_state = { board: empty_board, rndgen, seed } |> add_number |> add_number
+    _ = game_loop!(init_state)?
+    Cmd.new("stty") |> Cmd.args(["echo", "icanon"]) |> Cmd.exec_cmd!()?
+    Ok({})

@@ -1,8 +1,8 @@
-module [Board, draw_board, check_board, set_value, move, get_direction, empty_cells, empty_board]
+module [Board, draw_board, check_board, set_value, move, get_direction, empty_cells, empty_board, max_tile]
 
 Cell : I32
 Board : List (List Cell)
-Direction : [NoOp, Quit, L, D, U, R]
+Direction : [NoOp, Quit, Restart, L, D, U, R]
 Coordinate : (U64, U64)
 BoardState : [HasMove, HitGoal, GameOver]
 LineType : [Top, Middle, Bottom]
@@ -65,11 +65,12 @@ set_value = |board, (x, y), t|
 get_direction : U8 -> Direction
 get_direction = |x|
     when x is
-        'a' -> L
-        's' -> D
-        'w' -> U
-        'd' -> R
-        'q' -> Quit
+        'a' | 'h' | 'H' -> L
+        's' | 'j' | 'J' -> D
+        'w' | 'k' | 'K' -> U
+        'd' | 'l' | 'L' -> R
+        'q' | 'Q' -> Quit
+        'r' | 'R' -> Restart
         _ -> NoOp
 
 transpose : Board -> Board
@@ -85,7 +86,7 @@ transpose = |list_of_lists|
 move : Board, Direction -> Board
 move = |board, d|
     when d is
-        NoOp | Quit -> board
+        NoOp | Quit | Restart -> board
         L ->
             fill_empty = |xs| List.concat(xs, List.repeat(0, (dimension - List.len(xs))))
             merge_left = |input|
@@ -117,6 +118,19 @@ empty_cells = |board|
                         List.append(filtered, (i, j))
                     else
                         filtered,
+            ),
+    )
+
+max_tile : Board -> Cell
+max_tile = |board|
+    List.walk(
+        board,
+        0,
+        |best, row|
+            List.walk(
+                row,
+                best,
+                |current, cell| if cell > current then cell else current,
             ),
     )
 

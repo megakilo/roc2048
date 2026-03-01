@@ -7,6 +7,7 @@ import pf.Stdout
 import pf.Cmd
 import pf.Utc
 import pf.Stdin
+import pf.Tty
 import Roc2048 exposing [Board, draw_board, move, get_direction, check_board, set_value, empty_cells, empty_board]
 import rand.Random exposing [Generator, State]
 
@@ -57,11 +58,11 @@ game_loop! = |state|
                     game_loop!({ state & board: new_board } |> add_number)
 
 main! = |_|
-    Cmd.new("stty") |> Cmd.args(["-echo", "-icanon"]) |> Cmd.exec_cmd!()?
+    Tty.enable_raw_mode!({})
     ts = Utc.now!({}) |> Utc.to_millis_since_epoch |> Num.to_u32
     seed = Random.seed(ts)
     rndgen = Random.bounded_i32(1, Num.max_i32)
     init_state = { board: empty_board, rndgen, seed } |> add_number |> add_number
     _ = game_loop!(init_state)?
-    Cmd.new("stty") |> Cmd.args(["echo", "icanon"]) |> Cmd.exec_cmd!()?
+    Tty.disable_raw_mode!({})
     Ok({})

@@ -20,7 +20,7 @@ draw_line = |line_type|
             Middle -> ("├", "┼", "┤")
             Bottom -> ("└", "┴", "┘")
     body = Str.repeat("─", cell_width) |> List.repeat(dimension) |> List.intersperse(connector) |> Str.join_with("")
-    "${left_end}${body}${right_end}\n"
+    "${left_end}${body}${right_end}\r\n"
 
 empty_board : Board
 empty_board = List.repeat(List.repeat(0, dimension), dimension)
@@ -45,9 +45,9 @@ draw_board = |board|
             |row|
                 List.map(row, draw_cell) |> List.intersperse("│") |> Str.join_with(""),
         )
-        |> List.intersperse("│\n${draw_line(Middle)}│")
+        |> List.intersperse("│\r\n${draw_line(Middle)}│")
         |> Str.join_with("")
-    "${draw_line(Top)}│${body}│\n${draw_line(Bottom)}"
+    "${draw_line(Top)}│${body}│\r\n${draw_line(Bottom)}"
 
 check_board : Board -> BoardState
 check_board = |board|

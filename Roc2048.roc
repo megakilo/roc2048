@@ -1,59 +1,22 @@
-module [Board, draw_board, check_board, set_value, move, get_direction, empty_cells, empty_board, max_tile]
+module [Board, Direction, check_board, set_value, move, empty_cells, empty_board, max_tile]
 
 Cell : I32
 Board : List (List Cell)
 Direction : [NoOp, Quit, Restart, L, D, U, R]
 Coordinate : (U64, U64)
-BoardState : [HasMove, HitGoal, GameOver]
-LineType : [Top, Middle, Bottom]
+BoardState : [HasMove, GameOver]
 
 # Game Constants
-goal = 2048
 dimension = 4
-cell_width = 2 + Str.count_utf8_bytes(Num.to_str(goal))
-
-draw_line : LineType -> Str
-draw_line = |line_type|
-    (left_end, connector, right_end) =
-        when line_type is
-            Top -> ("┌", "┬", "┐")
-            Middle -> ("├", "┼", "┤")
-            Bottom -> ("└", "┴", "┘")
-    body = Str.repeat("─", cell_width) |> List.repeat(dimension) |> List.intersperse(connector) |> Str.join_with("")
-    "${left_end}${body}${right_end}\r\n"
 
 empty_board : Board
 empty_board = List.repeat(List.repeat(0, dimension), dimension)
 
 # Functions
-draw_cell : Cell -> Str
-draw_cell = |cell|
-    if cell == 0 then
-        Str.repeat(" ", cell_width)
-    else
-        len = Str.count_utf8_bytes(Num.to_str(cell))
-        pre = (cell_width + 1 - len) // 2
-        post = cell_width - pre - len
-        spaces = |n| Str.repeat(" ", n)
-        "${spaces(pre)}${Num.to_str(cell)}${spaces(post)}"
-
-draw_board : Board -> Str
-draw_board = |board|
-    body =
-        board
-        |> List.map(
-            |row|
-                List.map(row, draw_cell) |> List.intersperse("│") |> Str.join_with(""),
-        )
-        |> List.intersperse("│\r\n${draw_line(Middle)}│")
-        |> Str.join_with("")
-    "${draw_line(Top)}│${body}│\r\n${draw_line(Bottom)}"
 
 check_board : Board -> BoardState
 check_board = |board|
-    if List.any(board, |row| List.any(row, |x| x == goal)) then
-        HitGoal
-    else if List.any([L, R, U, D], |d| move(board, d) != board) then
+    if List.any([L, R, U, D], |d| (move(board, d)).board != board) then
         HasMove
     else
         GameOver
@@ -61,17 +24,6 @@ check_board = |board|
 set_value : Board, Coordinate, Cell -> Board
 set_value = |board, (x, y), t|
     List.update(board, x, |row| List.update(row, y, |_| t))
-
-get_direction : U8 -> Direction
-get_direction = |x|
-    when x is
-        'a' | 'h' | 'H' -> L
-        's' | 'j' | 'J' -> D
-        'w' | 'k' | 'K' -> U
-        'd' | 'l' | 'L' -> R
-        'q' | 'Q' -> Quit
-        'r' | 'R' -> Restart
-        _ -> NoOp
 
 transpose : Board -> Board
 transpose = |list_of_lists|
@@ -83,26 +35,43 @@ transpose = |list_of_lists|
             List.map2(state, row, |col, e| List.append(col, e)),
     )
 
-move : Board, Direction -> Board
+move : Board, Direction -> { board : Board, score : U64 }
 move = |board, d|
     when d is
-        NoOp | Quit | Restart -> board
+        NoOp | Quit | Restart -> { board, score: 0 }
         L ->
             fill_empty = |xs| List.concat(xs, List.repeat(0, (dimension - List.len(xs))))
-            merge_left = |input|
+            merge_left = |input, score|
                 when input is
                     [x, y, .. as xs] ->
                         if x == y then
-                            merge_left(xs) |> List.prepend(2 * x)
+                            res = merge_left(xs, score + Num.to_u64(2 * x))
+                            { list: List.prepend(res.list, 2 * x), score: res.score }
                         else
-                            merge_left(List.prepend(xs, y)) |> List.prepend(x)
+                            res = merge_left(List.prepend(xs, y), score)
+                            { list: List.prepend(res.list, x), score: res.score }
 
-                    _ -> input
-            List.map(board, |row| List.keep_if(row, |x| x != 0) |> merge_left |> fill_empty)
+                    _ -> { list: input, score: score }
 
-        R -> board |> List.map List.reverse |> move L |> List.map List.reverse
-        U -> board |> transpose |> move(L) |> transpose
-        D -> board |> transpose |> move(R) |> transpose
+            List.walk(
+                board,
+                { board: [], score: 0 },
+                |state, row|
+                    res = List.keep_if(row, |x| x != 0) |> merge_left(0)
+                    { board: List.append(state.board, fill_empty(res.list)), score: state.score + res.score },
+            )
+
+        R ->
+            res = board |> List.map(List.reverse) |> move(L)
+            { board: res.board |> List.map(List.reverse), score: res.score }
+
+        U ->
+            res = board |> transpose |> move(L)
+            { board: res.board |> transpose, score: res.score }
+
+        D ->
+            res = board |> transpose |> move(R)
+            { board: res.board |> transpose, score: res.score }
 
 empty_cells : Board -> List Coordinate
 empty_cells = |board|
@@ -130,7 +99,7 @@ max_tile = |board|
             List.walk(
                 row,
                 best,
-                |current, cell| if cell > current then cell else current,
+                Num.max,
             ),
     )
 
@@ -147,4 +116,9 @@ expect
 expect
     board = [[0, 0, 0, 2], [0, 0, 0, 2], [0, 0, 0, 0], [0, 0, 0, 0]]
     r = move(board, D)
-    r == [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 4]]
+    r.board == [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 4]]
+
+expect
+    board = [[2, 2, 0, 0], [4, 4, 0, 0], [8, 8, 8, 8], [0, 0, 0, 0]]
+    r = move(board, L)
+    r.score == 4 + 8 + 16 + 16

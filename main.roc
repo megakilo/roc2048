@@ -39,87 +39,67 @@ new_game : Generator U32, State -> GameState
 new_game = |rndgen, seed|
     { board: empty_board, rndgen, seed, moves: 0, score: 0, won: Bool.false } |> add_number |> add_number
 
-get_direction : U8 -> Direction
-get_direction = |x|
-    when x is
-        'a' | 'h' | 'H' -> L
-        's' | 'j' | 'J' -> D
-        'w' | 'k' | 'K' -> U
-        'd' | 'l' | 'L' -> R
-        'q' | 'Q' -> Quit
-        'r' | 'R' -> Restart
+parse_direction = |bytes|
+    when bytes is
+        [27, 91, 'A', ..] -> U
+        [27, 91, 'B', ..] -> D
+        [27, 91, 'C', ..] -> R
+        [27, 91, 'D', ..] -> L
+        [first, ..] ->
+            when first is
+                'a' | 'h' | 'H' -> L
+                's' | 'j' | 'J' -> D
+                'w' | 'k' | 'K' -> U
+                'd' | 'l' | 'L' -> R
+                'q' | 'Q' -> Quit
+                'r' | 'R' -> Restart
+                _ -> NoOp
+
         _ -> NoOp
 
-parse_direction = |bytes|
-    first = List.first(bytes) ?? 0
-    if first == 27 then
-        second = List.get(bytes, 1) ?? 0
-        third = List.get(bytes, 2) ?? 0
-        if second == '[' then
-            when third is
-                'A' -> U
-                'B' -> D
-                'C' -> R
-                'D' -> L
-                _ -> NoOp
-        else
-            NoOp
-    else
-        get_direction(first)
-
-write_line! = |line|
-    Stdout.write!("${line}\r\n")
-
 game_loop! = |state|
-    clear_screen = "\u(001B)[H\u(001B)[2J"
-    Stdout.write!(clear_screen)?
-    write_line!("Use WASD, HJKL, or arrow keys. Press r to restart, q to quit.")?
-    write_line!(draw_status(state.score, state.moves, state.board))?
-    Stdout.write!(draw_board(state.board))?
+    Stdout.write!("\u(001B)[H\u(001B)[2J")?
+    top = max_tile(state.board)
+    over = check_board(state.board) == GameOver
 
-    top_tile = max_tile(state.board)
-    if top_tile >= goal and state.won == Bool.false then
-        write_line!("You reached ${Num.to_str(goal)}! Press c to continue, r to restart, or q to quit.")?
-        input = Stdin.bytes!({})?
+    msg =
+        if top >= goal and !state.won then
+            "You reached ${Num.to_str(goal)}! Press c to continue, r to restart, or q to quit."
+        else if over then
+            "No more moves. Press r to restart or q to quit."
+        else
+            "WASD/HJKL/Arrows to move, r to restart, q to quit."
 
-        when List.first(input) ?? 0 is
-            'c' | 'C' -> game_loop!({ state & won: Bool.true })
-            'q' | 'Q' -> Ok(Done({}))
-            'r' | 'R' -> game_loop!(new_game(state.rndgen, state.seed))
-            _ -> game_loop!(state)
-    else
-        when check_board(state.board) is
-            GameOver ->
-                write_line!("No more moves. Press r to restart or q to quit.")?
-                input = Stdin.bytes!({})?
-                d = parse_direction(input)
-                when d is
-                    Restart -> game_loop!(new_game(state.rndgen, state.seed))
-                    Quit -> Ok(Done({}))
+    Stdout.write!("${msg}\r\n${draw_status(state.score, state.moves, state.board)}\r\n${draw_board(state.board)}")?
+
+    input = Stdin.bytes!({})?
+    d = parse_direction(input)
+
+    when d is
+        Quit -> Ok(Done({}))
+        Restart -> game_loop!(new_game(state.rndgen, state.seed))
+        _ ->
+            if top >= goal and !state.won then
+                when List.first(input) ?? 0 is
+                    'c' | 'C' -> game_loop!({ state & won: Bool.true })
                     _ -> game_loop!(state)
-
-            HasMove ->
-                input = Stdin.bytes!({})?
-                d = parse_direction(input)
+            else if over then
+                game_loop!(state)
+            else
                 when d is
                     NoOp -> game_loop!(state)
-                    Quit -> Ok(Done({}))
-                    Restart -> game_loop!(new_game(state.rndgen, state.seed))
                     _ ->
                         res = move(state.board, d)
                         if res.board == state.board then
                             game_loop!(state)
                         else
-                            next_state = { state & board: res.board, moves: state.moves + 1, score: state.score + res.score } |> add_number
-                            game_loop!(next_state)
+                            game_loop!({ state & board: res.board, moves: state.moves + 1, score: state.score + res.score } |> add_number)
 
 main! = |_|
     Tty.enable_raw_mode!({})
     ts = Utc.now!({}) |> Utc.to_millis_since_epoch |> Num.to_u32
     seed = Random.seed(ts)
     rndgen = Random.bounded_u32(0, Num.max_u32)
-    init_state = new_game(rndgen, seed)
-    outcome = game_loop!(init_state)
+    _ = game_loop!(new_game(rndgen, seed))?
     Tty.disable_raw_mode!({})
-    _ = outcome?
     Ok({})
